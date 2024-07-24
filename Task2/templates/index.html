@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to right, #f8ffae, #43c6ac);
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            background-color: #333;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #fff;
+            border: 2px solid #444;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #444;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .cell:hover {
+            background-color: #e0e0e0;
+            transform: scale(1.1);
+        }
+        .cell.x {
+            color: #ff5733;
+        }
+        .cell.o {
+            color: #33b5e5;
+        }
+        h1 {
+            font-size: 2rem;
+            color: #fff;
+            text-shadow: 1px 1px 2px #333;
+            margin-bottom: 20px;
+        }
+        .container {
+            text-align: center;
+        }
+        .replay-button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            background-color: #33b5e5;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: none; /* Initially hidden */
+        }
+        .replay-button:hover {
+            background-color: #0099cc;
+        }
+        .winner-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 1000;
+        }
+        .winner-popup.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tic-Tac-Toe</h1>
+        <div class="board" id="board">
+            <!-- 9 cells for the Tic-Tac-Toe board -->
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+        <div class="winner-popup" id="winnerPopup">
+            <h2 id="winnerMessage"></h2>
+            <button class="replay-button" id="replayButton">Replay</button>
+        </div>
+    </div>
+
+    <!-- Confetti.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const cells = document.querySelectorAll('.cell');
+            const boardElement = document.getElementById('board');
+            const winnerPopup = document.getElementById('winnerPopup');
+            const winnerMessage = document.getElementById('winnerMessage');
+            const replayButton = document.getElementById('replayButton');
+
+            cells.forEach(cell => {
+                cell.addEventListener('click', () => {
+                    const index = cell.dataset.index;
+                    const row = Math.floor(index / 3);
+                    const col = index % 3;
+                    makeMove(row, col);
+                });
+            });
+
+            replayButton.addEventListener('click', () => {
+                fetch('/reset', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'reset') {
+                            updateBoard(data.board);
+                            winnerPopup.classList.remove('show');
+                            replayButton.style.display = 'none'; // Hide the replay button after resetting
+                        }
+                    });
+            });
+
+            async function makeMove(row, col) {
+                const response = await fetch('/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ row, col })
+                });
+                const data = await response.json();
+                if (data.status === 'win' || data.status === 'draw') {
+                    updateBoard(data.board);
+                    showWinnerPopup(data.status, data.winner);
+                } else {
+                    updateBoard(data.board);
+                }
+            }
+
+            function updateBoard(board) {
+                cells.forEach((cell, i) => {
+                    const row = Math.floor(i / 3);
+                    const col = i % 3;
+                    cell.textContent = board[row][col];
+                    cell.classList.remove('x', 'o');
+                    if (board[row][col] === 'X') {
+                        cell.classList.add('x');
+                    } else if (board[row][col] === 'O') {
+                        cell.classList.add('o');
+                    }
+                });
+            }
+
+            function showWinnerPopup(status, winner) {
+                winnerMessage.textContent = status === 'win' ? `${winner} wins!` : "It's a draw!";
+                winnerPopup.classList.add('show');
+                replayButton.style.display = 'block'; // Show the replay button
+                confettiCelebration();
+                setTimeout(() => {
+                    fetch('/reset', { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'reset') {
+                                updateBoard(data.board);
+                                winnerPopup.classList.remove('show');
+                                replayButton.style.display = 'none'; // Hide the replay button after resetting
+                            }
+                        });
+                }, 3000); // Restart the game after 3 seconds
+            }
+
+            function confettiCelebration() {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
